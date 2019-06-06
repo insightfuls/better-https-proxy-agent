@@ -1,9 +1,10 @@
 {
   "name": "better-https-proxy-agent",
   "version": "1.0.0",
-  "description": "An agent for HTTPS through an HTTP(S) proxy server using the CONNECT method.",
+  "description": "An agent for HTTPS through an HTTP(S) proxy server using the CONNECT method",
   "main": "index.js",
   "directories": {
+    "lib": "src",
     "test": "test"
   },
   "scripts": {
@@ -11,6 +12,10 @@
   },
   "author": "Ben Schmidt",
   "license": "MIT",
+  "files": [
+    "README.md",
+    "index.js"
+  ],
   "devDependencies": {
     "chai": "^4.2.0",
     "mocha": "^6.1.4"
