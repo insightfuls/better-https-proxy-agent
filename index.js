@@ -19,6 +19,7 @@ function Agent(httpsAgentOptions, proxyRequestOptions) {
 
 	proxyRequestOptions = Object.assign({}, proxyRequestOptions);
 	proxyRequestOptions.protocol = proxyRequestOptions.protocol || 'http:';
+	proxyRequestOptions.method = 'CONNECT';
 	if (!proxyRequestOptions.agent) {
 		proxyRequestOptions.agent = proxyRequestOptions.protocol === 'https:'
 		                          ? new HttpsAgent()
@@ -110,7 +111,6 @@ Agent.prototype.createConnection = function createConnection(options, callback) 
 
 Agent.prototype._createProxyConnection = function _createProxyConnection(throughOptions, callback) {
 	const toOptions = Object.assign({}, this[OPTIONS]);
-	toOptions.method = 'CONNECT';
 	toOptions.path = throughOptions.host + ':' + throughOptions.port
 	// toOptions.headers = { host: throughOptions.host };
 
@@ -135,7 +135,7 @@ Agent.prototype._createProxyConnection = function _createProxyConnection(through
 
 Agent.prototype.getName = function getName(options) {
 	return HttpsAgent.prototype.getName.call(this, options) + ':'
-			+ this[OPTIONS].agent.getName(options);
+			+ this[OPTIONS].agent.getName(this[OPTIONS]);
 };
 
 module.exports.Agent = Agent;
