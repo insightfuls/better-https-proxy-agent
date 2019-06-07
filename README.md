@@ -21,7 +21,7 @@ connections _through_ the proxy.
 
 It was partly inspired by this
 [blog post](https://www.vanamco.com/2014/06/24/proxy-requests-in-node-js/)
-and [related gist|https://gist.github.com/matthias-christen/6beb3b4dda26bd6a221d].
+and [related gist](https://gist.github.com/matthias-christen/6beb3b4dda26bd6a221d).
 
 Basic usage
 -----------
@@ -30,7 +30,7 @@ Basic usage
 npm install better-https-proxy-agent
 ```
 
-```
+```javascript
 const { Agent } = require('better-https-proxy-agent');
 const fs = require('fs');
 const https = require('https');
