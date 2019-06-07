@@ -142,9 +142,13 @@ class MockProxy {
 
 	_handleData(tlsSocket, response, chunk) {
 		for (let c=0; c<chunk.length; c++) {
-			if (tlsSocket.endHeadersBytesSeen % 2)
-					tlsSocket.endHeadersBytesSeen += chunk[c] === 10 ? 1 : 0;
-			else tlsSocket.endHeadersBytesSeen += chunk[c] === 13 ? 1 : 0;
+			if (tlsSocket.endHeadersBytesSeen % 2) {
+				if (chunk[c] === 10) tlsSocket.endHeadersBytesSeen++;
+				else tlsSocket.endHeadersBytesSeen = 0;
+			} else {
+				if (chunk[c] === 13) tlsSocket.endHeadersBytesSeen++;
+				else tlsSocket.endHeadersBytesSeen = 0;
+			}
 
 			if (tlsSocket.endHeadersBytesSeen === 4) {
 				this.requests++;

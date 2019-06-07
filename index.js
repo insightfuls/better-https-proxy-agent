@@ -5,6 +5,7 @@ const { request: httpRequest, Agent: HttpAgent } = require('http');
 const { request: httpsRequest, Agent: HttpsAgent } = require('https');
 const { inherits, debuglog } = require('util');
 const debug = debuglog('betterHttpsProxyAgent');
+const duplexify = require('duplexify');
 
 const OPTIONS = "_betterHttpsProxyOptions";
 const ACTIVE_SOCKETS = "_betterHttpsProxyActiveSockets";
@@ -32,17 +33,14 @@ function Agent(httpsAgentOptions, proxyRequestOptions) {
 }
 inherits(Agent, HttpsAgent);
 
-Agent.prototype.createConnection = function createConnection(options, callback) {
+Agent.prototype.createConnection = function createConnection(options) {
 	options = Object.assign({}, options);
 
 	const maxSockets = this[OPTIONS].maxSockets;
 	if (maxSockets && maxSockets === this[ACTIVE_SOCKETS]) {
 		debug('createConnection exceeded maxSockets', options);
 
-		this[WAITING_REQUESTS].push({
-			options,
-			callback
-		});
+		this[WAITING_REQUESTS].push(options);
 
 		return;
 	}
@@ -51,50 +49,31 @@ Agent.prototype.createConnection = function createConnection(options, callback) 
 
 	this[ACTIVE_SOCKETS]++;
 
-	if (options._agentKey) {
-		const session = this._getSession(options._agentKey);
+	this._augmentOptionsWithSession(options);
 
-		if (session) {
-			debug('reuse session for %j', options._agentKey);
-			options = Object.assign({
-				session: session
-			}, options);
-		}
-	}
+	const stream = this._createSurrogateStream();
 
 	this._createProxyConnection(options, (err, socket) => {
 		if (err) {
-			callback(err);
+			stream.emit('error', err);
 
 			return;
 		}
 
-		let calledBack = false;
-
 		options.socket = socket;
 
 		const tlsSocket = tls.connect(options, () => {
-			if (!options._agentKey) {
-				return;
-			}
+			this._connectSurrogateStream(stream, tlsSocket);
 
-			this._cacheSession(options._agentKey, tlsSocket.getSession());
-
-			calledBack = true;
-			callback(null, tlsSocket);
+			if (options._agentKey) this._cacheSession(options._agentKey, tlsSocket.getSession());
 		});
 
 		tlsSocket.once('error', (err) => {
-			if (!calledBack) {
-				calledBack = true;
-				callback(err);
-			}
+			if (!stream.surrogateConnected) stream.emit('error', err);
 		});
 
 		tlsSocket.once('close', (hadError) => {
-			if (hadError) {
-				this._evictSession(options._agentKey);
-			}
+			if (hadError) this._evictSession(options._agentKey);
 
 			this[ACTIVE_SOCKETS]--;
 
@@ -103,16 +82,128 @@ Agent.prototype.createConnection = function createConnection(options, callback) 
 			if (waiting) {
 				debug('createConnection for waiting request');
 
-				this.createConnection(waiting.options, waiting.callback);
+				this.createConnection(waiting);
 			}
 		});
 	});
+
+	return stream;
+};
+
+Agent.prototype._augmentOptionsWithSession = function _augmentOptionsWithSession(options) {
+	if (!options._agentKey) return;
+
+	if (options.session) return;
+
+	const session = this._getSession(options._agentKey);
+
+	if (!session) return;
+
+	debug('reuse session for %j', options._agentKey);
+	options.session = session;
+};
+
+Agent.prototype._createSurrogateStream = function _createSurrogateStream() {
+	const stream = duplexify();
+
+	stream.surrogateConnected = false;
+	stream.surrogateTimeout = undefined;
+	stream.surrogateSetKeepAliveCalls = [];
+	stream.surrogateReffed = true;
+
+	/*
+	 * These methods 'buffer' their side effects until the surrogate is connected.
+	 */
+
+	stream.setTimeout = function surrogateSetTimeout(timeout, callback) {
+		this.surrogateTimeout = timeout;
+
+		if (callback) this.once('timeout', callback);
+
+		return this;
+	};
+
+	stream.setKeepAlive = function surrogateSetKeepAlive() {
+		this.surrogateSetKeepAliveCalls.push(Array.from(arguments));
+
+		return this;
+	};
+
+	stream.ref = function surrogateRef() {
+		this.surrogateReffed = true;
+
+		return this;
+	};
+
+	stream.unref = function surrogateUnref() {
+		this.surrogateReffed = false;
+
+		return this;
+	};
+
+	return stream;
+};
+
+Agent.prototype._connectSurrogateStream = function _connectSurrogateStream(stream, tlsSocket) {
+	stream.surrogateConnected = true;
+	stream.setReadable(tlsSocket);
+	stream.setWritable(tlsSocket);
+
+	/*
+	 * Apply 'buffered' side effects.
+	 */
+
+	if (typeof stream.surrogateTimeout !== 'undefined') {
+		tlsSocket.setTimeout(stream.surrogateTimeout);
+	}
+
+	stream.surrogateSetKeepAliveCalls.forEach((args) => {
+		tlsSocket.setKeepAlive.apply(tlsSocket, args)
+	});
+
+	if (!stream.surrogateReffed) tlsSocket.unref();
+
+	/*
+	 * These methods forward to the connected stream.
+	 */
+
+	stream.setTimeout = function connectedSetTimeout(timeout, callback) {
+		tlsSocket.setTimeout(timeout);
+
+		if (callback) this.once('timeout', callback);
+
+		return this;
+	};
+
+	stream.setKeepAlive = function connectedSetKeepAlive() {
+		tlsSocket.setKeepAlive.apply(tlsSocket, arguments)
+
+		return this;
+	}
+
+	stream.ref = function connectedRef() {
+		tlsSocket.ref.apply(tlsSocket)
+
+		return this;
+	}
+
+	stream.unref = function connectedUnef() {
+		tlsSocket.unref.apply(tlsSocket)
+
+		return this;
+	}
+
+	/*
+	 * Forward the 'timeout' event, as it is not a standard stream event.
+	 * Neither is the 'connect' event, but since the stream is already 'connected'
+	 * when it is returned, we don't need that.
+	 */
+	tlsSocket.on('timeout', () => stream.emit('timeout'));
 };
 
 Agent.prototype._createProxyConnection = function _createProxyConnection(throughOptions, callback) {
 	const toOptions = Object.assign({}, this[OPTIONS]);
 	toOptions.path = throughOptions.host + ':' + throughOptions.port
-	// toOptions.headers = { host: throughOptions.host };
 
 	debug('_createProxyConnection', toOptions);
 
@@ -126,9 +217,7 @@ Agent.prototype._createProxyConnection = function _createProxyConnection(through
 		callback(null, socket);
 	});
 
-	request.on('error', function(err) {
-		callback(err);
-	});
+	request.on('error', callback);
 
 	request.end();
 };

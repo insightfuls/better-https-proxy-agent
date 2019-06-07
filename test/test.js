@@ -19,6 +19,7 @@ describe("better-https-proxy-agent", () => {
 			expectations: {
 				responseData: "Success",
 				mockConnections: 1,
+				mockRequests: 1,
 				mockPath: "www.example.com:1234"
 			}
 		});
@@ -32,6 +33,34 @@ describe("better-https-proxy-agent", () => {
 			expectations: {
 				mockPath: "www.example.com:443"
 			}
+		});
+	});
+
+	it("pools connections", async () => {
+		const mock = await startMockHttpProxy({
+			port,
+			keepAlive: true
+		});
+		const options = {
+			agent: agent({
+				httpsAgentOptions: { maxSockets: 1 },
+				proxyRequestOptions: {},
+			}),
+			mock,
+			expectations: {
+				responseData: "Success",
+				mockConnections: 1
+			}
+		};
+		const results = [
+			requestAndVerify(options),
+			requestAndVerify(options),
+			requestAndVerify(options)
+		];
+		await Promise.all(results).then(() => {
+			verifyMockExpectations(mock, {
+				mockRequests: 3
+			});
 		});
 	});
 
@@ -138,6 +167,9 @@ function verifyResponseExpectations(response, expectations) {
 function verifyMockExpectations(mock, expectations) {
 	if (expectations.mockConnections) {
 		expect(mock.connections.length).to.equal(expectations.mockConnections);
+	}
+	if (expectations.mockRequests) {
+		expect(mock.requests).to.equal(expectations.mockRequests);
 	}
 	if (expectations.mockPath) {
 		expect(mock.connections[mock.connections.length-1]).to.equal(expectations.mockPath);

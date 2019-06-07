@@ -19,5 +19,8 @@
   "devDependencies": {
     "chai": "^4.2.0",
     "mocha": "^6.1.4"
+  },
+  "dependencies": {
+    "duplexify": "^4.0.0"
   }
 }
