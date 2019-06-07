@@ -10,6 +10,33 @@
   "scripts": {
     "test": "mocha test/test.js"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/insightfuls/better-https-proxy-agent.git"
+  },
+  "keywords": [
+    "https",
+    "http",
+    "proxy",
+    "http proxy",
+    "https proxy",
+    "agent",
+    "connect",
+    "connection",
+    "pool",
+    "pooling",
+    "connection pool",
+    "connection pooling",
+    "timeout",
+    "TLS",
+    "SSL",
+    "client",
+    "certificate",
+    "client certificate",
+    "basic",
+    "authentication",
+    "basic authentication"
+  ],
   "author": "Ben Schmidt",
   "license": "MIT",
   "files": [
@@ -17,6 +44,10 @@
     "LICENSE",
     "index.js"
   ],
+  "bugs": {
+    "url": "https://github.com/insightfuls/better-https-proxy-agent/issues"
+  },
+  "homepage": "https://github.com/insightfuls/better-https-proxy-agent#readme",
   "devDependencies": {
     "chai": "^4.2.0",
     "mocha": "^6.1.4"
