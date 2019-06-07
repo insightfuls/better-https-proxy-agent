@@ -1,6 +1,6 @@
 {
   "name": "better-https-proxy-agent",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "An agent for HTTPS through an HTTP(S) proxy server using the CONNECT method",
   "main": "index.js",
   "directories": {
