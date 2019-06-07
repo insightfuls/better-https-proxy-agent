@@ -86,7 +86,7 @@ class MockProxy {
 	}
 
 	_respondToConnection(socket) {
-		socket.write('HTTP/1.1 200 Connection Established\r\n\r\n');
+		socket.write(['HTTP/1.1 200 Connection Established', '', ''].join('\r\n'));
 
 		const tlsSocket = new tls.TLSSocket(socket, {
 			isServer: true,
@@ -100,7 +100,8 @@ class MockProxy {
 		 * For the mock, the response we give will be the same for every HTTP request,
 		 * depending only on the TLS connection parameters.
 		 */
-		let response = "HTTP/1.1 500 Internal Server Error\r\nContent-length: 0\r\n\r\n";
+		let response = ['HTTP/1.1 500 Internal Server Error',
+				'Content-length: 0', '', ''].join('\r\n');
 
 		tlsSocket.on('secure', () => {
 			this._sockets.add(tlsSocket);
@@ -132,12 +133,12 @@ class MockProxy {
 			if (verifyError) {
 				/* Assume the stack only contains ASCII */
 				const stack = verifyError.stack;
-				return "HTTP/1.1 403 Forbidden\r\n" +
-						"Content-length: " + stack.length + "\r\n\r\n" + stack;
+				return ['HTTP/1.1 403 Forbidden',
+						'Content-length: ' + stack.length, '', ''].join('\r\n') + stack;
 			}
 		}
 
-		return "HTTP/1.1 200 OK\r\nContent-length: 7\r\n\r\nSuccess";
+		return ['HTTP/1.1 200 OK', 'Content-length: 7', '', ''].join('\r\n') + 'Success';
 	}
 
 	_handleData(tlsSocket, response, chunk) {
