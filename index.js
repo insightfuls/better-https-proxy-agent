@@ -203,7 +203,7 @@ Agent.prototype._connectSurrogateStream = function _connectSurrogateStream(strea
 
 Agent.prototype._createProxyConnection = function _createProxyConnection(throughOptions, callback) {
 	const toOptions = Object.assign({}, this[OPTIONS]);
-	toOptions.path = throughOptions.host + ':' + throughOptions.port
+	toOptions.path = (throughOptions.hostname || throughOptions.host) + ':' + throughOptions.port
 
 	debug('_createProxyConnection', toOptions);
 
