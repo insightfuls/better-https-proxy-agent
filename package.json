@@ -4,7 +4,6 @@
   "description": "An agent for HTTPS through an HTTP(S) proxy server using the CONNECT method",
   "main": "index.js",
   "directories": {
-    "lib": "src",
     "test": "test"
   },
   "scripts": {
