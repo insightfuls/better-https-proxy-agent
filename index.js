@@ -118,7 +118,7 @@ Agent.prototype._createSurrogateStream = function _createSurrogateStream() {
 	stream.setTimeout = function surrogateSetTimeout(timeout, callback) {
 		this.surrogateTimeout = timeout;
 
-		if (callback) this.once('timeout', callback);
+		this.setTimeoutListener(timeout, callback);
 
 		return this;
 	};
@@ -139,6 +139,24 @@ Agent.prototype._createSurrogateStream = function _createSurrogateStream() {
 		this.surrogateReffed = false;
 
 		return this;
+	};
+
+	/*
+	 * Utility method used both before and after the surrogate stream is connected.
+	 */
+
+	stream.setTimeoutListener = function setTimeoutListener(timeout, callback) {
+		if (timeout) {
+			if (callback) this.once('timeout', callback);
+			return;
+		}
+
+		if (callback) {
+			this.removeListener('timeout', callback);
+			return;
+		}
+
+		this.removeAllListeners('timeout');
 	};
 
 	return stream;
@@ -170,7 +188,7 @@ Agent.prototype._connectSurrogateStream = function _connectSurrogateStream(strea
 	stream.setTimeout = function connectedSetTimeout(timeout, callback) {
 		tlsSocket.setTimeout(timeout);
 
-		if (callback) this.once('timeout', callback);
+		this.setTimeoutListener(timeout, callback);
 
 		return this;
 	};

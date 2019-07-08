@@ -79,6 +79,51 @@ describe("better-https-proxy-agent", () => {
 		});
 	});
 
+	it("supports timeout handlers", async () => {
+		let timedOut = 0;
+		const mock = await startMockHttpProxy({
+			port,
+			hangRequest: 50,
+			keepAlive: true
+		});
+		const options = {
+			agent: agent({
+				httpsAgentOptions: { maxSockets: 1 }
+			}),
+			mock,
+			requestOptions: {
+				timeout: 20,
+				onTimeout: () => timedOut++,
+			}
+		};
+		await requestAndVerify(options);
+		await requestAndVerify(options);
+		expect(timedOut).to.equal(2);
+	});
+
+	it("clears timeout handlers", async () => {
+		let timedOut = 0;
+		const mock = await startMockHttpProxy({
+			port,
+			hangRequest: 50,
+			keepAlive: true
+		});
+		const options = {
+			agent: agent({
+				httpsAgentOptions: { maxSockets: 1 }
+			}),
+			mock,
+			requestOptions: {
+				timeout: 100,
+				onTimeout: () => timedOut++
+			}
+		};
+		await requestAndVerify(options);
+		options.requestOptions.timeout = 20;
+		await requestAndVerify(options);
+		expect(timedOut).to.equal(1);
+	});
+
 });
 
 function agent(options) {
@@ -144,6 +189,12 @@ function defaultRequestOptions(agent) {
 
 function performRequest(requestOptions) {
 	const request = https.request(requestOptions);
+	const timeout = requestOptions.timeout;
+	const onTimeout = requestOptions.onTimeout;
+	if (onTimeout) {
+		delete requestOptions.timeout;
+		delete requestOptions.onTimeout;
+	}
 	return new Promise((resolve, reject) => {
 		request.on('error', (err) => {
 			resolve({
@@ -152,6 +203,9 @@ function performRequest(requestOptions) {
 				error: err
 			});
 		});
+		if (onTimeout) {
+			request.setTimeout(timeout ? timeout : 1000, onTimeout);
+		}
 		request.on('response', (response) => {
 			response.data = "";
 			response.on('data', (chunk) => {
