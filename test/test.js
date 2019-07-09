@@ -79,6 +79,27 @@ describe("better-https-proxy-agent", () => {
 		});
 	});
 
+	it("establishes new connections when proxy closes them", async () => {
+		const mock = await startMockHttpProxy({
+			port
+		});
+		const options = {
+			agent: agent({
+				httpsAgentOptions: { maxSockets: 1 }
+			}),
+			mock,
+			expectations: {
+				responseData: "Success"
+			}
+		};
+		await requestAndVerify(options);
+		await requestAndVerify(options);
+		verifyMockExpectations(mock, {
+			mockConnections: 2,
+			mockRequests: 2
+		});
+	});
+
 	it("supports timeout handlers", async () => {
 		const mock = await startMockHttpProxy({
 			port,
