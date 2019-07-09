@@ -116,55 +116,16 @@ Agent.prototype._createSurrogateStream = function _createSurrogateStream() {
 	 * These methods 'buffer' their side effects until the surrogate is connected.
 	 */
 
-	stream.setTimeout = function surrogateSetTimeout(timeout, callback) {
-		this.surrogateTimeout = timeout;
-
-		this.setTimeoutListener(timeout, callback);
-
-		return this;
-	};
-
-	stream.setKeepAlive = function surrogateSetKeepAlive(enable, initialDelay) {
-		if (typeof enable === 'boolean') {
-			this.surrogateKeepAliveEnable = enable;
-		} else {
-			initialDelay = enable;
-		}
-
-		if (initialDelay) this.surrogateKeepAliveDelay = initialDelay;
-
-		return this;
-	};
-
-	stream.ref = function surrogateRef() {
-		this.surrogateReffed = true;
-
-		return this;
-	};
-
-	stream.unref = function surrogateUnref() {
-		this.surrogateReffed = false;
-
-		return this;
-	};
+	stream.setTimeout = surrogateSetTimeout;
+	stream.setKeepAlive = surrogateSetKeepAlive;
+	stream.ref = surrogateRef;
+	stream.unref = surrogateUnref;
 
 	/*
 	 * Utility method used both before and after the surrogate stream is connected.
 	 */
 
-	stream.setTimeoutListener = function setTimeoutListener(timeout, callback) {
-		if (timeout) {
-			if (callback) this.once('timeout', callback);
-			return;
-		}
-
-		if (callback) {
-			this.removeListener('timeout', callback);
-			return;
-		}
-
-		this.removeAllListeners('timeout');
-	};
+	stream.setTimeoutListener = setTimeoutListener;
 
 	return stream;
 };
@@ -198,40 +159,17 @@ Agent.prototype._connectSurrogateStream = function _connectSurrogateStream(strea
 	 * These methods forward to the connected stream.
 	 */
 
-	stream.setTimeout = function connectedSetTimeout(timeout, callback) {
-		this.surrogateConnectedStream.setTimeout(timeout);
-
-		this.setTimeoutListener(timeout, callback);
-
-		return this;
-	};
-
-	stream.setKeepAlive = function connectedSetKeepAlive(enable, initialDelay) {
-		this.surrogateConnectedStream.setKeepAlive(enable, initialDelay);
-
-		return this;
-	}
-
-	stream.ref = function connectedRef() {
-		this.surrogateConnectedStream.ref();
-
-		return this;
-	}
-
-	stream.unref = function connectedUnef() {
-		this.surrogateConnectedStream.unref();
-
-		return this;
-	}
+	stream.setTimeout = connectedSetTimeout;
+	stream.setKeepAlive = connectedSetKeepAlive;
+	stream.ref = connectedRef;
+	stream.unref = connectedUnref;
 
 	/*
 	 * Forward the 'timeout' event, as it is not a standard stream event.
 	 * Neither is the 'connect' event, but since the stream is already 'connected'
 	 * when it is returned, we don't need that.
 	 */
-	tlsSocket.on('timeout', function onTimeout() {
-		this.surrogateStream.emit('timeout')
-	});
+	tlsSocket.on('timeout', connectedOnTimeout);
 
 	/*
 	 * Although the 'duplexify' documentation states, "If the readable or 
@@ -242,12 +180,8 @@ Agent.prototype._connectSurrogateStream = function _connectSurrogateStream(strea
 	 * 'duplexify' stream following an error. However, following an 'end' event, 
 	 * no 'close' is emitted at all. Oops. We work around that problem here.
 	 */
-	tlsSocket.once('end', function connectedOnEnd() {
-		this.surrogateSeenEnd = true;
-	});
-	tlsSocket.once('close', function connectedOnClose() {
-		if (this.surrogateSeenEnd) this.surrogateStream.emit('close');
-	});
+	tlsSocket.once('end', connectedOnEnd);
+	tlsSocket.once('close', connectedOnClose);
 };
 
 Agent.prototype._createProxyConnection = function _createProxyConnection(throughOptions, callback) {
@@ -275,5 +209,89 @@ Agent.prototype.getName = function getName(options) {
 	return HttpsAgent.prototype.getName.call(this, options) + ':'
 			+ this[OPTIONS].agent.getName(this[OPTIONS]);
 };
+
+function surrogateSetTimeout(timeout, callback) {
+	this.surrogateTimeout = timeout;
+
+	this.setTimeoutListener(timeout, callback);
+
+	return this;
+}
+
+function surrogateSetKeepAlive(enable, initialDelay) {
+	if (typeof enable === 'boolean') {
+		this.surrogateKeepAliveEnable = enable;
+	} else {
+		initialDelay = enable;
+	}
+
+	if (initialDelay) this.surrogateKeepAliveDelay = initialDelay;
+
+	return this;
+}
+
+function surrogateRef() {
+	this.surrogateReffed = true;
+
+	return this;
+}
+
+function surrogateUnref() {
+	this.surrogateReffed = false;
+
+	return this;
+}
+
+function setTimeoutListener(timeout, callback) {
+	if (timeout) {
+		if (callback) this.once('timeout', callback);
+		return;
+	}
+
+	if (callback) {
+		this.removeListener('timeout', callback);
+		return;
+	}
+
+	this.removeAllListeners('timeout');
+}
+
+function connectedSetTimeout(timeout, callback) {
+	this.surrogateConnectedStream.setTimeout(timeout);
+
+	this.setTimeoutListener(timeout, callback);
+
+	return this;
+}
+
+function connectedSetKeepAlive(enable, initialDelay) {
+	this.surrogateConnectedStream.setKeepAlive(enable, initialDelay);
+
+	return this;
+}
+
+function connectedRef() {
+	this.surrogateConnectedStream.ref();
+
+	return this;
+}
+
+function connectedUnref() {
+	this.surrogateConnectedStream.unref();
+
+	return this;
+}
+
+function connectedOnTimeout() {
+	this.surrogateStream.emit('timeout')
+}
+
+function connectedOnEnd() {
+	this.surrogateSeenEnd = true;
+}
+
+function connectedOnClose() {
+	if (this.surrogateSeenEnd) this.surrogateStream.emit('close');
+}
 
 module.exports.Agent = Agent;
