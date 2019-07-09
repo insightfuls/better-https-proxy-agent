@@ -7,7 +7,7 @@
     "test": "test"
   },
   "scripts": {
-    "test": "mocha test/test.js"
+    "test": "mocha --expose-gc test/test.js"
   },
   "repository": {
     "type": "git",

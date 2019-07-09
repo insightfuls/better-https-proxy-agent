@@ -80,12 +80,12 @@ describe("better-https-proxy-agent", () => {
 	});
 
 	it("supports timeout handlers", async () => {
-		let timedOut = 0;
 		const mock = await startMockHttpProxy({
 			port,
 			hangRequest: 50,
 			keepAlive: true
 		});
+		let timedOut = 0;
 		const options = {
 			agent: agent({
 				httpsAgentOptions: { maxSockets: 1 }
@@ -102,12 +102,12 @@ describe("better-https-proxy-agent", () => {
 	});
 
 	it("clears timeout handlers", async () => {
-		let timedOut = 0;
 		const mock = await startMockHttpProxy({
 			port,
 			hangRequest: 50,
 			keepAlive: true
 		});
+		let timedOut = 0;
 		const options = {
 			agent: agent({
 				httpsAgentOptions: { maxSockets: 1 }
@@ -122,6 +122,61 @@ describe("better-https-proxy-agent", () => {
 		options.requestOptions.timeout = 20;
 		await requestAndVerify(options);
 		expect(timedOut).to.equal(1);
+	});
+
+	it("doesn't leak memory", async function () {
+		/*
+		 * Increase the timeout for the test as we're firing off a lot of requests
+		 * sequentially for this test.
+		 */
+		this.timeout(5000);
+
+		const mock = await startMockHttpProxy({
+			port,
+			keepAlive: true
+		});
+
+		/*
+		 * This isn't specifically testing timeouts, but timeout handlers were causing
+		 * a memory leak, so they're here in order to reproduce the problem.
+		 */
+		let timedOut = false;
+		const options = {
+			agent: agent({
+				httpsAgentOptions: { maxSockets: 1 }
+			}),
+			mock,
+			requestOptions: {
+				timeout: 1000,
+				onTimeout: () => timedOut = true,
+			},
+			expectations: {
+				responseData: "Success",
+				mockConnections: 1
+			}
+		};
+
+		// Warm up
+		for (let i=0; i<100; i++) {
+			await requestAndVerify(options);
+		}
+
+		// Measure memory increase
+		global.gc();
+		const initialMemory = process.memoryUsage().heapTotal;
+		for (let j=0; j<2000; j++) {
+			await requestAndVerify(options);
+			if (j%100==99) global.gc();
+		}
+		const finalMemory = process.memoryUsage().heapTotal;
+		const increasedMemory = finalMemory - initialMemory;
+
+		/*
+		 * I reliably see memory increase by at most 0.5 MB, but it's not an 
+		 * exact science so this assertion is conservative. Prior to fixing the
+		 * bug there were increases of around 25 MB.
+		 */
+		expect(increasedMemory).to.be.lessThan(2 * 1024 * 1024);
 	});
 
 });
