@@ -108,7 +108,8 @@ Agent.prototype._createSurrogateStream = function _createSurrogateStream() {
 
 	stream.surrogateConnected = false;
 	stream.surrogateTimeout = undefined;
-	stream.surrogateSetKeepAliveCalls = [];
+	stream.surrogateKeepAliveEnable = undefined;
+	stream.surrogateKeepAliveDelay = undefined;
 	stream.surrogateReffed = true;
 
 	/*
@@ -123,8 +124,14 @@ Agent.prototype._createSurrogateStream = function _createSurrogateStream() {
 		return this;
 	};
 
-	stream.setKeepAlive = function surrogateSetKeepAlive() {
-		this.surrogateSetKeepAliveCalls.push(Array.from(arguments));
+	stream.setKeepAlive = function surrogateSetKeepAlive(enable, initialDelay) {
+		if (typeof enable === 'boolean') {
+			this.surrogateKeepAliveEnable = enable;
+		} else {
+			initialDelay = enable;
+		}
+
+		if (initialDelay) this.surrogateKeepAliveDelay = initialDelay;
 
 		return this;
 	};
@@ -175,9 +182,12 @@ Agent.prototype._connectSurrogateStream = function _connectSurrogateStream(strea
 		tlsSocket.setTimeout(stream.surrogateTimeout);
 	}
 
-	stream.surrogateSetKeepAliveCalls.forEach((args) => {
-		tlsSocket.setKeepAlive.apply(tlsSocket, args)
-	});
+	if (typeof stream.surrogateKeepAliveEnable !== 'undefined') {
+		tlsSocket.setKeepAlive(stream.surrogateKeepAliveEnable);
+	}
+	if (typeof stream.surrogateKeepAliveDelay !== 'undefined') {
+		tlsSocket.setKeepAlive(stream.surrogateKeepAliveDelay);
+	}
 
 	if (!stream.surrogateReffed) tlsSocket.unref();
 
@@ -193,20 +203,20 @@ Agent.prototype._connectSurrogateStream = function _connectSurrogateStream(strea
 		return this;
 	};
 
-	stream.setKeepAlive = function connectedSetKeepAlive() {
-		tlsSocket.setKeepAlive.apply(tlsSocket, arguments)
+	stream.setKeepAlive = function connectedSetKeepAlive(enable, initialDelay) {
+		tlsSocket.setKeepAlive(enable, initialDelay);
 
 		return this;
 	}
 
 	stream.ref = function connectedRef() {
-		tlsSocket.ref.apply(tlsSocket)
+		tlsSocket.ref();
 
 		return this;
 	}
 
 	stream.unref = function connectedUnef() {
-		tlsSocket.unref.apply(tlsSocket)
+		tlsSocket.unref();
 
 		return this;
 	}
