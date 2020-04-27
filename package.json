@@ -1,6 +1,6 @@
 {
   "name": "better-https-proxy-agent",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "An agent for HTTPS through an HTTP(S) proxy server using the CONNECT method",
   "main": "index.js",
   "directories": {
@@ -49,7 +49,7 @@
   "homepage": "https://github.com/insightfuls/better-https-proxy-agent#readme",
   "devDependencies": {
     "chai": "^4.2.0",
-    "mocha": "^6.1.4"
+    "mocha": "^7.1.2"
   },
   "dependencies": {
     "duplexify": "^4.0.0"

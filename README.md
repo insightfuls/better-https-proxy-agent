@@ -41,7 +41,9 @@ const https = require('https');
  */
 const httpsAgentOptions = {
     keepAlive: true,
-    maxSockets: 10,
+    timeout: 55000,
+    maxSockets: 20,
+    maxFreeSockets: 5,
     maxCachedSessions: 500
 };
 
@@ -69,7 +71,7 @@ const proxyRequestOptions = {
     protocol: "https:", 
     host: "proxy.example.com",
     port: 3128,
-    timeout: 5000,
+    timeout: 123000,
     maxSockets: 100,
     cert: fs.readFileSync("proxy_auth_cert.pem"),
     key: fs.readFileSync("proxy_auth_key.pem"),
@@ -101,13 +103,24 @@ enough to close pooled connections _through_ the proxy so that you can open a
 new connection _to_ the proxy.
 
 The `timeout` that is set on an HTTPS request that uses the proxy agent will be
-used to set the 'request timeout', i.e. how long to wait for the proxy to
-connect to the target server, after the connection to the proxy has already
-been made. The `timeout` in the `proxyRequestOptions` (or `agent` provided in
-the `proxyRequestOptions`) controls how long to wait for a connection to be
-made to the proxy itself. Since it is a two-step process to connect _to_ the
-proxy and then connect _through_ the proxy, these two timeouts are cumulative,
-which may not be what the caller of `https.request` expects.
+used to set the 'request timeout' (for requests _through_ the proxy), including
+how long to wait for the proxy to connect to the target server, after the
+connection to the proxy has already been made. The `timeout` in the
+`proxyRequestOptions` (or `agent` provided in the `proxyRequestOptions`)
+controls how long to wait for a connection to be made to the proxy itself.
+Since it is a two-step process to connect _to_ the proxy and then connect
+_through_ the proxy, these two timeouts are cumulative, which may not be what
+the caller of `https.request` expects.
+
+Furthermore, the `timeout` in the `proxyRequestOptions` (or `agent` provided in
+`proxyRequestOptions`) applies to inactivity on the proxy connection. This can
+occur during requests _through_ the proxy, or between them if `keepAlive` is
+`true` in the `httpsAgentOptions`. More directly, the timeout for in-flight
+requests _through_ the proxy is governed by any `timeout` option set on them,
+and the timeout for kept-alive connections is governed by `timeout` in the
+`httpsAgentOptions`. Consequently, `timeout` in `proxyRequestOptions` should be
+set higher than both of these other timeouts or it will gazump them, cutting
+them short.
 
 Licence
 -------
