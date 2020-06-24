@@ -51,9 +51,11 @@ Agent.prototype.createConnection = function createConnection(options) {
 
 	this._augmentOptionsWithSession(options);
 
-	const stream = this._createSurrogateStream();
+	const stream = this._createSurrogateStream(() => {
+		request.abort();
+	});
 
-	this._createProxyConnection(options, (err, socket) => {
+	const request = this._createProxyConnection(options, (err, socket) => {
 		if (err) {
 			stream.emit('error', err);
 
@@ -63,10 +65,10 @@ Agent.prototype.createConnection = function createConnection(options) {
 		options.socket = socket;
 
 		const tlsSocket = tls.connect(options, () => {
-			this._connectSurrogateStream(stream, tlsSocket);
-
 			if (options._agentKey) this._cacheSession(options._agentKey, tlsSocket.getSession());
 		});
+
+		this._connectSurrogateStream(stream, tlsSocket);
 
 		tlsSocket.once('error', (err) => {
 			if (!stream.surrogateConnectedStream) stream.emit('error', err);
@@ -87,6 +89,10 @@ Agent.prototype.createConnection = function createConnection(options) {
 		});
 	});
 
+	request.on('timeout', () => {
+		stream.emit('timeout');
+	});
+
 	return stream;
 };
 
@@ -103,7 +109,7 @@ Agent.prototype._augmentOptionsWithSession = function _augmentOptionsWithSession
 	options.session = session;
 };
 
-Agent.prototype._createSurrogateStream = function _createSurrogateStream() {
+Agent.prototype._createSurrogateStream = function _createSurrogateStream(destroyer) {
 	const stream = duplexify();
 
 	stream.surrogateConnectedStream = null;
@@ -111,6 +117,7 @@ Agent.prototype._createSurrogateStream = function _createSurrogateStream() {
 	stream.surrogateKeepAliveEnable = undefined;
 	stream.surrogateKeepAliveDelay = undefined;
 	stream.surrogateReffed = true;
+	stream.surrogateDestroy = destroyer;
 
 	/*
 	 * These methods 'buffer' their side effects until the surrogate is connected.
@@ -120,6 +127,7 @@ Agent.prototype._createSurrogateStream = function _createSurrogateStream() {
 	stream.setKeepAlive = surrogateSetKeepAlive;
 	stream.ref = surrogateRef;
 	stream.unref = surrogateUnref;
+	stream.destroy = surrogateDestroy;
 
 	/*
 	 * Utility method used both before and after the surrogate stream is connected.
@@ -137,6 +145,8 @@ Agent.prototype._connectSurrogateStream = function _connectSurrogateStream(strea
 
 	tlsSocket.surrogateStream = stream;
 	tlsSocket.surrogateSeenEnd = false;
+
+	tlsSocket.surrogateDestroy = null;
 
 	/*
 	 * Apply 'buffered' side effects.
@@ -163,13 +173,13 @@ Agent.prototype._connectSurrogateStream = function _connectSurrogateStream(strea
 	stream.setKeepAlive = connectedSetKeepAlive;
 	stream.ref = connectedRef;
 	stream.unref = connectedUnref;
+	stream.destroy = connectedDestroy;
 
 	/*
-	 * Forward the 'timeout' event, as it is not a standard stream event.
-	 * Neither is the 'connect' event, but since the stream is already 'connected'
-	 * when it is returned, we don't need that.
+	 * Forward the 'timeout' and 'connect' events, as they are not standard stream events.
 	 */
 	tlsSocket.on('timeout', connectedOnTimeout);
+	tlsSocket.on('connect', connectedOnConnect);
 
 	/*
 	 * Although the 'duplexify' documentation states, "If the readable or 
@@ -218,6 +228,8 @@ Agent.prototype._createProxyConnection = function _createProxyConnection(through
 	request.on('error', callback);
 
 	request.end();
+
+	return request;
 };
 
 Agent.prototype.getName = function getName(options) {
@@ -253,6 +265,12 @@ function surrogateRef() {
 
 function surrogateUnref() {
 	this.surrogateReffed = false;
+
+	return this;
+}
+
+function surrogateDestroy() {
+	this.surrogateDestroy();
 
 	return this;
 }
@@ -297,8 +315,18 @@ function connectedUnref() {
 	return this;
 }
 
+function connectedDestroy() {
+	this.surrogateConnectedStream.destroy();
+
+	return this;
+}
+
 function connectedOnTimeout() {
 	this.surrogateStream.emit('timeout')
+}
+
+function connectedOnConnect() {
+	this.surrogateStream.emit('connect')
 }
 
 function connectedOnEnd() {

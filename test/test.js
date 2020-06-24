@@ -114,7 +114,50 @@ describe("better-https-proxy-agent", () => {
 		});
 	});
 
-	it("supports timeout handlers", async () => {
+	it("supports timeout handlers on slow connect", async () => {
+		const mock = await startMockHttpProxy({
+			port,
+			hangConnect: 50,
+			keepAlive: true
+		});
+		let timedOut = 0;
+		const options = {
+			agent: agent({}),
+			mock,
+			requestOptions: {
+				timeout: 20,
+				onTimeout: () => timedOut++,
+			},
+			expectations: {
+				responseData: "Success"
+			}
+		};
+		await requestAndVerify(options);
+		expect(timedOut).to.equal(1);
+	});
+
+	it("supports destroy during slow connect", async () => {
+		const mock = await startMockHttpProxy({
+			port,
+			hangConnect: true,
+			keepAlive: true
+		});
+		const options = {
+			agent: agent({}),
+			mock,
+			requestOptions: {
+				timeout: 20,
+				onTimeout: function() { this.abort() }
+			},
+			expectations: {
+				// This is the documented error message if you abort a request before it connects
+				responseErrorMessage: "socket hang up"
+			}
+		};
+		await requestAndVerify(options);
+	});
+
+	it("supports timeout handlers on slow request", async () => {
 		const mock = await startMockHttpProxy({
 			port,
 			hangRequest: 50,
@@ -294,7 +337,7 @@ function performRequest(requestOptions) {
 			});
 		});
 		if (onTimeout) {
-			request.setTimeout(timeout ? timeout : 1000, onTimeout);
+			request.setTimeout(timeout ? timeout : 1000, onTimeout.bind(request));
 		}
 		request.on('response', (response) => {
 			response.data = "";
