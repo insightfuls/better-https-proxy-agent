@@ -200,7 +200,19 @@ Agent.prototype._createProxyConnection = function _createProxyConnection(through
 	}
 
 	request.on('connect', function(res, socket, head) {
-		callback(null, socket);
+		if (res.statusCode === 200) {
+			callback(null, socket);
+		} else {
+			const error = new Error(res.statusMessage);
+			error.code = res.statusCode;
+			callback(error);
+
+			/*
+			 * There is no expectation of reuse of a socket when using CONNECT, so although
+			 * we theoretically could reuse it, we don't bother. It's simpler to destroy it.
+			 */
+			socket.destroy();
+		}
 	});
 
 	request.on('error', callback);

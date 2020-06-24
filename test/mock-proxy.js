@@ -9,6 +9,7 @@ const proxies = new Set();
  * options.port: port to listen on (required)
  * options.authenticate: require a client certificate
  * options.cn: expected client certificate CN (implies authenticate)
+ * options.failConnect: respond to CONNECT with a failure
  * options.hangConnect: milliseconds before responding to CONNECT; true to hang forever
  * options.hangRequest: milliseconds before responding with HTTP 200; true to hang forever
  * options.keepAlive: leave the socket open after responding with HTTP 200
@@ -86,6 +87,18 @@ class MockProxy {
 	}
 
 	_respondToConnection(socket) {
+		if (this._options.failConnect) {
+			socket.write(['HTTP/1.1 500 Connection Error', '', ''].join('\r\n'));
+
+			if (!this._options.keepAlive) {
+				socket.end();
+			} else {
+				this._sockets.add(socket);
+			}
+
+			return;
+		}
+
 		socket.write(['HTTP/1.1 200 Connection Established', '', ''].join('\r\n'));
 
 		const tlsSocket = new tls.TLSSocket(socket, {

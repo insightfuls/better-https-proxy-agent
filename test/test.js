@@ -52,6 +52,20 @@ describe("better-https-proxy-agent", () => {
 		});
 	});
 
+	it("propagates connect error", async () => {
+		await requestAndVerify({
+			agent: agent({}),
+			mock: await startMockHttpProxy({
+				port,
+				failConnect: true
+			}),
+			expectations: {
+				responseErrorMessage: "Connection Error",
+				responseErrorCode: 500
+			}
+		});
+	});
+
 	it("pools connections", async () => {
 		const mock = await startMockHttpProxy({
 			port,
@@ -301,8 +315,11 @@ function performRequest(requestOptions) {
 }
 
 function verifyResponseExpectations(response, expectations) {
-	if (expectations.responseError) {
-		expect(response.error.message).to.contain(expectations.responseError);
+	if (expectations.responseErrorMessage) {
+		expect(response.error.message).to.contain(expectations.responseErrorMessage);
+	}
+	if (expectations.responseErrorCode) {
+		expect(response.error.code).to.equal(expectations.responseErrorCode);
 	}
 	if (expectations.responseData) {
 		expect(response.data).to.contain(expectations.responseData);
