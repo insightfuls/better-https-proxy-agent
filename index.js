@@ -179,6 +179,9 @@ Agent.prototype._connectSurrogateStream = function _connectSurrogateStream(strea
 	 * before an expected `end` event; `close` events are also emitted by the 
 	 * 'duplexify' stream following an error. However, following an 'end' event, 
 	 * no 'close' is emitted at all. Oops. We work around that problem here.
+	 *
+	 * It also doesn't set writable to false when the stream is closed, even
+	 * though it is no longer safe to call write(). We deal with that, too.
 	 */
 	tlsSocket.once('end', connectedOnEnd);
 	tlsSocket.once('close', connectedOnClose);
@@ -291,6 +294,7 @@ function connectedOnEnd() {
 }
 
 function connectedOnClose() {
+	this.surrogateStream.writable = false;
 	if (this.surrogateSeenEnd) this.surrogateStream.emit('close');
 }
 
