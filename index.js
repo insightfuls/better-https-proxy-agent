@@ -110,7 +110,12 @@ Agent.prototype._augmentOptionsWithSession = function _augmentOptionsWithSession
 };
 
 Agent.prototype._createSurrogateStream = function _createSurrogateStream(destroyer) {
-	const stream = duplexify();
+	const stream = duplexify(null, null, {
+		/*
+		 * Don't end the writable stream when the readable stream ends.
+		 */
+		end: false
+	});
 
 	stream.surrogateConnectedStream = null;
 	stream.surrogateTimeout = undefined;
@@ -184,16 +189,14 @@ Agent.prototype._connectSurrogateStream = function _connectSurrogateStream(strea
 	/*
 	 * Although the 'duplexify' documentation states, "If the readable or 
 	 * writable streams emits an error or close it will destroy both streams and 
-	 * bubble up the event," on careful examination, `close` events only bubble
-	 * up and destroy the stream if they are 'premature', which means they occur
-	 * before an expected `end` event; `close` events are also emitted by the 
-	 * 'duplexify' stream following an error. However, following an 'end' event, 
-	 * no 'close' is emitted at all. Oops. We work around that problem here.
+	 * bubble up the event," this does not appear to be reliable, but I have been
+	 * unable to reproduce the situation using mocks. Propagate the events ourselves
+	 * to be safe.
 	 *
-	 * It also doesn't set writable to false when the stream is closed, even
+	 * 'duplexify' also doesn't set writable to false when the stream is closed, even
 	 * though it is no longer safe to call write(). We deal with that, too.
 	 */
-	tlsSocket.once('end', connectedOnEnd);
+	tlsSocket.once('error', connectedOnError);
 	tlsSocket.once('close', connectedOnClose);
 };
 
@@ -329,13 +332,13 @@ function connectedOnConnect() {
 	this.surrogateStream.emit('connect')
 }
 
-function connectedOnEnd() {
-	this.surrogateSeenEnd = true;
+function connectedOnError(error) {
+	this.surrogateStream.emit('error', error);
 }
 
 function connectedOnClose() {
 	this.surrogateStream.writable = false;
-	if (this.surrogateSeenEnd) this.surrogateStream.emit('close');
+	this.surrogateStream.emit('close');
 }
 
 module.exports.Agent = Agent;
