@@ -42,6 +42,8 @@ class MockProxy {
 		this._options = options;
 
 		this._server.on('connect', (request, socket, head) => {
+			socket.on('end', () => socket.end());
+
 			if (head.length) {
 				throw new Error("unexpected head");
 			}
@@ -87,6 +89,10 @@ class MockProxy {
 	}
 
 	_respondToConnection(socket) {
+		if (!socket.writable) {
+			return;
+		}
+
 		if (this._options.failConnect) {
 			socket.write(['HTTP/1.1 500 Connection Error', '', ''].join('\r\n'));
 

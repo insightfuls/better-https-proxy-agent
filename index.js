@@ -58,6 +58,7 @@ Agent.prototype.createConnection = function createConnection(options) {
 	const request = this._createProxyConnection(options, (err, socket) => {
 		if (err) {
 			stream.emit('error', err);
+			stream.emit('close');
 
 			return;
 		}
@@ -69,10 +70,6 @@ Agent.prototype.createConnection = function createConnection(options) {
 		});
 
 		this._connectSurrogateStream(stream, tlsSocket);
-
-		tlsSocket.once('error', (err) => {
-			if (!stream.surrogateConnectedStream) stream.emit('error', err);
-		});
 
 		tlsSocket.once('close', (hadError) => {
 			if (hadError) this._evictSession(options._agentKey);
@@ -202,7 +199,7 @@ Agent.prototype._connectSurrogateStream = function _connectSurrogateStream(strea
 
 Agent.prototype._createProxyConnection = function _createProxyConnection(throughOptions, callback) {
 	const toOptions = Object.assign({}, this[OPTIONS]);
-	toOptions.path = (throughOptions.hostname || throughOptions.host) + ':' + throughOptions.port
+	toOptions.path = (throughOptions.hostname || throughOptions.host) + ':' + throughOptions.port;
 
 	debug('_createProxyConnection', toOptions);
 
@@ -273,6 +270,11 @@ function surrogateUnref() {
 }
 
 function surrogateDestroy() {
+	// Only destroy once.
+	this.destroy = () => {};
+
+	this.writable = false;
+
 	this.surrogateDestroy();
 
 	return this;
@@ -319,6 +321,11 @@ function connectedUnref() {
 }
 
 function connectedDestroy() {
+	// Only destroy once.
+	this.destroy = () => {};
+
+	this.writable = false;
+
 	this.surrogateConnectedStream.destroy();
 
 	return this;

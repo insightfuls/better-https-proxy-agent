@@ -93,6 +93,53 @@ describe("better-https-proxy-agent", () => {
 		});
 	});
 
+	it("becomes unwritable synchronously prior to connection", async () => {
+		const mock = await startMockHttpProxy({
+			port,
+			hangConnect: 50,
+			keepAlive: true
+		});
+		let writable;
+		const options = {
+			agent: agent({}),
+			mock,
+			requestOptions: {
+				timeout: 20,
+				/* Capture whether the socket is writable if destroyed prior to connecting. */
+				onTimeout: function() {
+					this.socket.destroy();
+					writable = this.socket.writable;
+				}
+			}
+		};
+		await requestAndVerify(options);
+
+		expect(writable).to.be.false;
+	});
+
+	it("becomes unwritable synchronously when connected", async () => {
+		const mock = await startMockHttpProxy({
+			port,
+			hangConnect: 50,
+			keepAlive: true
+		});
+		let socket;
+		const options = {
+			agent: agent({}),
+			mock,
+			requestOptions: {
+				timeout: 20,
+				/* Capture the socket while waiting for it to connect. */
+				onTimeout: function() { socket = this.socket; }
+			}
+		};
+		await requestAndVerify(options);
+
+		socket.destroy();
+
+		expect(socket.writable).to.be.false;
+	});
+
 	it("establishes new connections when proxy closes them", async () => {
 		const mock = await startMockHttpProxy({
 			port
@@ -136,7 +183,7 @@ describe("better-https-proxy-agent", () => {
 		expect(timedOut).to.equal(1);
 	});
 
-	it("supports destroy during slow connect", async () => {
+	it("supports abort during slow connect", async () => {
 		const mock = await startMockHttpProxy({
 			port,
 			hangConnect: true,
@@ -244,7 +291,7 @@ describe("better-https-proxy-agent", () => {
 		const initialMemory = process.memoryUsage().heapTotal;
 		for (let j=0; j<2000; j++) {
 			await requestAndVerify(options);
-			if (j%100==99) global.gc();
+			if (j%100===99) global.gc();
 		}
 		const finalMemory = process.memoryUsage().heapTotal;
 		const increasedMemory = finalMemory - initialMemory;
