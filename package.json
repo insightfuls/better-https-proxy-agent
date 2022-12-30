@@ -49,7 +49,7 @@
   "homepage": "https://github.com/insightfuls/better-https-proxy-agent#readme",
   "devDependencies": {
     "chai": "^4.2.0",
-    "mocha": "^7.1.2"
+    "mocha": "^10.2.0"
   },
   "dependencies": {
     "duplexify": "4.0.0"
